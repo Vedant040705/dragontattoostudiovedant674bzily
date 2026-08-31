@@ -103,6 +103,50 @@
                     animation="property: rotation; from: 0 0 0; to: 0 -360 0; dur: 8000; loop: true; easing: linear"
                 ></a-entity>
 
+                <!-- Fire Breath Effect -->
+                <!-- Native A-Frame fire made from layered semi-transparent animated spheres. -->
+                <a-entity
+                    id="fire-breath"
+                    visible="false"
+                    position="0 20 60"
+                    animation__firemove="property: position; from: 0 20 60; to: 0 20 130; dur: 2000; easing: easeOutQuad; startEvents: fireBreath"
+                    animation__firescale="property: scale; from: 10 10 10; to: 180 180 180; dur: 650; easing: easeOutCubic; startEvents: fireBreath"
+                >
+                    <a-sphere
+                        radius="0.18"
+                        color="#FF5A00"
+                        material="shader: flat; transparent: true; opacity: 0.82"
+                        data-fire-layer="true"
+                        data-fire-opacity="0.82"
+                        position="0 0 0"
+                        animation__fade="property: material.opacity; from: 0.82; to: 0; dur: 2000; easing: easeInQuad; startEvents: fireBreath"
+                        animation__pulse="property: scale; from: 0.8 1.15 0.8; to: 1.25 0.82 1.1; dir: alternate; dur: 180; loop: 8; easing: easeInOutSine; startEvents: fireBreath"
+                    ></a-sphere>
+                    <a-sphere
+                        radius="0.13"
+                        color="#E3261A"
+                        material="shader: flat; transparent: true; opacity: 0.78"
+                        data-fire-layer="true"
+                        data-fire-opacity="0.78"
+                        position="0 0 -0.07"
+                        animation__fade="property: material.opacity; from: 0.78; to: 0; dur: 2000; easing: easeInQuad; startEvents: fireBreath"
+                        scale="0.72 1.2 0.72"
+                        animation__pulse="property: scale; from: 0.65 1.15 0.65; to: 1.15 0.72 1.05; dir: alternate; dur: 150; loop: 10; easing: easeInOutSine; startEvents: fireBreath"
+                    ></a-sphere>
+                    <a-sphere
+                        radius="0.085"
+                        color="#FFE600"
+                        material="shader: flat; transparent: true; opacity: 0.9"
+                        data-fire-layer="true"
+                        data-fire-opacity="0.9"
+                        position="0 0 0.09"
+                        animation__fade="property: material.opacity; from: 0.9; to: 0; dur: 2000; easing: easeInQuad; startEvents: fireBreath"
+                        scale="0.62 1.25 0.62"
+                        animation__pulse="property: scale; from: 0.55 1.2 0.55; to: 1.1 0.7 0.9; dir: alternate; dur: 120; loop: 12; easing: easeInOutSine; startEvents: fireBreath"
+                    ></a-sphere>
+                </a-entity>
+                <!-- End Fire Breath Effect -->
+
                 <!-- Added Interactive UI: floating buttons under the dragon -->
                 <a-entity id="ui-buttons-container" position="0 -0.45 0">
                     <a-entity
@@ -270,6 +314,41 @@ Pune, Maharashtra"
                 var buttonsContainer = document.querySelector('#ui-buttons-container');
                 var activePanel = null; // currently visible panel name ('about' | 'gallery' | 'contact' | null)
 
+                // Fire Breath Interaction
+                var dragonEl = document.querySelector('#bowser-model');
+                var fireBreathEl = document.querySelector('#fire-breath');
+                var fireBreathTimer = null;
+
+                function resetFireBreath() {
+                    if (!fireBreathEl) return;
+                    fireBreathEl.setAttribute('visible', false);
+                    fireBreathEl.setAttribute('position', '0 20 60');
+                    fireBreathEl.setAttribute('scale', '10 10 10');
+                    fireBreathEl.querySelectorAll('[data-fire-layer]').forEach(function (layerEl) {
+                        var material = layerEl.getAttribute('material') || {};
+                        var opacity = layerEl.getAttribute('data-fire-opacity') || material.opacity;
+                        if (opacity !== undefined && opacity !== null) {
+                            layerEl.setAttribute('material', 'opacity', parseFloat(opacity));
+                        }
+                    });
+                    if (fireBreathTimer) {
+                        clearTimeout(fireBreathTimer);
+                        fireBreathTimer = null;
+                    }
+                }
+
+                function breatheFire() {
+                    if (!dragonEl || !fireBreathEl) return;
+                    resetFireBreath();
+                    fireBreathEl.setAttribute('visible', true);
+                    fireBreathEl.emit('fireBreath');
+                    fireBreathTimer = setTimeout(resetFireBreath, 2050);
+                }
+
+                if (dragonEl) {
+                    dragonEl.addEventListener('click', breatheFire);
+                }
+
                 function getPanelEl(name) {
                     return document.querySelector('#panel-' + name);
                 }
@@ -357,6 +436,7 @@ Pune, Maharashtra"
                     markerEl.addEventListener('markerLost', function () {
                         hideButtons();
                         closeAllPanels();
+                        resetFireBreath();
                     });
                 }
             })();
