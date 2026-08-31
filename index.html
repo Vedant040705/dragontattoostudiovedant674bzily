@@ -1,11 +1,34 @@
 <!doctype html>
 <html>
     <head>
+        <!-- Added Interactive UI: viewport meta for mobile responsiveness -->
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <!-- End Added Interactive UI -->
+
         <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
         <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
+
+        <!-- Added Interactive UI: billboard component (always face camera) -->
+        <script>
+            // Added button interactions
+            // Simple billboard component so buttons/panels always face the camera.
+            // Registered here (before a-scene is parsed) so it is available to entities.
+            if (window.AFRAME && !AFRAME.components['billboard']) {
+                AFRAME.registerComponent('billboard', {
+                    tick: function () {
+                        var cameraEl = this.cameraEl || (this.cameraEl = document.querySelector('[camera]'));
+                        if (!cameraEl || !cameraEl.object3D) return;
+                        var camPos = new THREE.Vector3();
+                        cameraEl.object3D.getWorldPosition(camPos);
+                        this.el.object3D.lookAt(camPos);
+                    }
+                });
+            }
+        </script>
+        <!-- End Added Interactive UI -->
     </head>
     <body style="margin: 0; overflow: hidden;">
         <a-scene
@@ -22,6 +45,43 @@
                     id="animated-asset"
                     src="assets/asset.gltf"
                 ></a-asset-item>
+
+                <!-- Added Interactive UI: generate rounded-rect background textures for buttons/panels -->
+                <script>
+                    // Added button interactions
+                    (function () {
+                        function roundRectDataURL(w, h, r, fillStyle) {
+                            var canvas = document.createElement('canvas');
+                            canvas.width = w;
+                            canvas.height = h;
+                            var ctx = canvas.getContext('2d');
+                            ctx.clearRect(0, 0, w, h);
+                            ctx.fillStyle = fillStyle;
+                            ctx.beginPath();
+                            ctx.moveTo(r, 0);
+                            ctx.arcTo(w, 0, w, h, r);
+                            ctx.arcTo(w, h, 0, h, r);
+                            ctx.arcTo(0, h, 0, 0, r);
+                            ctx.arcTo(0, 0, w, 0, r);
+                            ctx.closePath();
+                            ctx.fill();
+                            return canvas.toDataURL();
+                        }
+
+                        var btnImg = document.createElement('img');
+                        btnImg.id = 'ui-btn-bg';
+                        btnImg.crossOrigin = 'anonymous';
+                        btnImg.src = roundRectDataURL(512, 160, 40, 'rgba(15,15,20,0.72)');
+                        document.currentScript.parentNode.appendChild(btnImg);
+
+                        var panelImg = document.createElement('img');
+                        panelImg.id = 'ui-panel-bg';
+                        panelImg.crossOrigin = 'anonymous';
+                        panelImg.src = roundRectDataURL(768, 700, 48, 'rgba(10,10,16,0.85)');
+                        document.currentScript.parentNode.appendChild(panelImg);
+                    })();
+                </script>
+                <!-- End Added Interactive UI -->
             </a-assets>
             <a-marker
                 id="animated-marker"
@@ -42,8 +102,265 @@
                     gesture-handler
                     animation="property: rotation; from: 0 0 0; to: 0 -360 0; dur: 8000; loop: true; easing: linear"
                 ></a-entity>
+
+                <!-- Added Interactive UI: floating buttons under the dragon -->
+                <a-entity id="ui-buttons-container" position="0 -0.45 0">
+                    <a-entity
+                        id="btn-about"
+                        class="clickable ui-button"
+                        data-panel="about"
+                        geometry="primitive: plane; width: 0.46; height: 0.16"
+                        material="shader: flat; src: #ui-btn-bg; transparent: true; opacity: 0"
+                        position="-0.55 -0.05 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__moveup="property: position; from: -0.55 -0.1 0; to: -0.55 0 0; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 400; easing: easeInQuad; startEvents: hideUI"
+                    >
+                        <a-text
+                            value="ABOUT"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.5"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+
+                    <a-entity
+                        id="btn-gallery"
+                        class="clickable ui-button"
+                        data-panel="gallery"
+                        geometry="primitive: plane; width: 0.46; height: 0.16"
+                        material="shader: flat; src: #ui-btn-bg; transparent: true; opacity: 0"
+                        position="0 -0.05 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__moveup="property: position; from: 0 -0.1 0; to: 0 0 0; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 400; easing: easeInQuad; startEvents: hideUI"
+                    >
+                        <a-text
+                            value="GALLERY"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.5"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+
+                    <a-entity
+                        id="btn-contact"
+                        class="clickable ui-button"
+                        data-panel="contact"
+                        geometry="primitive: plane; width: 0.46; height: 0.16"
+                        material="shader: flat; src: #ui-btn-bg; transparent: true; opacity: 0"
+                        position="0.55 -0.05 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__moveup="property: position; from: 0.55 -0.1 0; to: 0.55 0 0; dur: 700; easing: easeOutQuad; startEvents: showUI"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 400; easing: easeInQuad; startEvents: hideUI"
+                    >
+                        <a-text
+                            value="CONTACT"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.5"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+                </a-entity>
+                <!-- End Added Interactive UI: floating buttons -->
+
+                <!-- Added Interactive UI: floating info panels (one visible at a time) -->
+                <a-entity id="ui-panels-container" position="0 -0.45 0.35">
+                    <a-entity
+                        id="panel-about"
+                        class="ui-panel"
+                        visible="false"
+                        geometry="primitive: plane; width: 1.05; height: 0.95"
+                        material="shader: flat; src: #ui-panel-bg; transparent: true; opacity: 0"
+                        position="0 0.55 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 500; easing: easeOutQuad; startEvents: panelShow"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 350; easing: easeInQuad; startEvents: panelHide"
+                    >
+                        <a-text
+                            value="Dragon Tattoo Studio
+
+Specializing in Japanese Tattoos
+
+• Traditional
+• Neo Traditional
+• Fine Line
+
+Pune, Maharashtra"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.65"
+                            wrap-count="26"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+
+                    <a-entity
+                        id="panel-gallery"
+                        class="ui-panel"
+                        visible="false"
+                        geometry="primitive: plane; width: 1.05; height: 0.95"
+                        material="shader: flat; src: #ui-panel-bg; transparent: true; opacity: 0"
+                        position="0 0.55 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 500; easing: easeOutQuad; startEvents: panelShow"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 350; easing: easeInQuad; startEvents: panelHide"
+                    >
+                        <a-text
+                            value="GALLERY
+
+• Dragon Sleeve
+• Samurai
+• Tiger
+• Koi Fish
+• Oni Mask
+
+(placeholder text)"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.65"
+                            wrap-count="26"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+
+                    <a-entity
+                        id="panel-contact"
+                        class="ui-panel"
+                        visible="false"
+                        geometry="primitive: plane; width: 1.05; height: 0.95"
+                        material="shader: flat; src: #ui-panel-bg; transparent: true; opacity: 0"
+                        position="0 0.55 0"
+                        billboard
+                        animation__fadein="property: material.opacity; from: 0; to: 1; dur: 500; easing: easeOutQuad; startEvents: panelShow"
+                        animation__fadeout="property: material.opacity; from: 1; to: 0; dur: 350; easing: easeInQuad; startEvents: panelHide"
+                    >
+                        <a-text
+                            value="CONTACT
+
+📞 +91 XXXXXXXXXX
+📧 hello@dragontattoo.com
+📷 Instagram
+🌐 www.dragontattoo.com"
+                            align="center"
+                            color="#FFFFFF"
+                            width="1.65"
+                            wrap-count="26"
+                            position="0 0 0.01"
+                        ></a-text>
+                    </a-entity>
+                </a-entity>
+                <!-- End Added Interactive UI: floating info panels -->
             </a-marker>
             <a-entity camera></a-entity>
         </a-scene>
+
+        <!-- Added Interactive UI: interaction wiring -->
+        <script>
+            // Added button interactions
+            (function () {
+                var sceneEl = document.querySelector('#scene');
+                var markerEl = document.querySelector('#animated-marker');
+                var buttonsContainer = document.querySelector('#ui-buttons-container');
+                var activePanel = null; // currently visible panel name ('about' | 'gallery' | 'contact' | null)
+
+                function getPanelEl(name) {
+                    return document.querySelector('#panel-' + name);
+                }
+
+                function showPanel(name) {
+                    var panelEl = getPanelEl(name);
+                    if (!panelEl) return;
+                    panelEl.setAttribute('visible', true);
+                    // restart animation in case it was mid-fade
+                    panelEl.emit('panelShow');
+                }
+
+                function hidePanel(name) {
+                    var panelEl = getPanelEl(name);
+                    if (!panelEl) return;
+                    panelEl.emit('panelHide');
+                }
+
+                function onPanelFadeOutComplete(evt) {
+                    // hide entity fully once fade-out animation finishes to stop raycasting/rendering it
+                    if (evt.detail && evt.detail.name === 'fadeout') {
+                        evt.target.setAttribute('visible', false);
+                    }
+                }
+
+                ['panel-about', 'panel-gallery', 'panel-contact'].forEach(function (id) {
+                    var el = document.querySelector('#' + id);
+                    if (el) {
+                        el.addEventListener('animationcomplete__fadeout', onPanelFadeOutComplete);
+                    }
+                });
+
+                function togglePanel(name) {
+                    if (activePanel === name) {
+                        // clicking the same button again hides its panel
+                        hidePanel(activePanel);
+                        activePanel = null;
+                        return;
+                    }
+                    if (activePanel) {
+                        hidePanel(activePanel);
+                    }
+                    showPanel(name);
+                    activePanel = name;
+                }
+
+                function bindButton(id) {
+                    var btnEl = document.querySelector('#' + id);
+                    if (!btnEl) return;
+                    btnEl.addEventListener('click', function () {
+                        var panelName = btnEl.getAttribute('data-panel');
+                        togglePanel(panelName);
+                    });
+                }
+
+                bindButton('btn-about');
+                bindButton('btn-gallery');
+                bindButton('btn-contact');
+
+                function showButtons() {
+                    if (!buttonsContainer) return;
+                    buttonsContainer.querySelectorAll('.ui-button').forEach(function (btn) {
+                        btn.emit('showUI');
+                    });
+                }
+
+                function hideButtons() {
+                    if (!buttonsContainer) return;
+                    buttonsContainer.querySelectorAll('.ui-button').forEach(function (btn) {
+                        btn.emit('hideUI');
+                    });
+                }
+
+                function closeAllPanels() {
+                    if (activePanel) {
+                        hidePanel(activePanel);
+                        activePanel = null;
+                    }
+                }
+
+                if (markerEl) {
+                    markerEl.addEventListener('markerFound', function () {
+                        showButtons();
+                    });
+                    markerEl.addEventListener('markerLost', function () {
+                        hideButtons();
+                        closeAllPanels();
+                    });
+                }
+            })();
+        </script>
+        <!-- End Added Interactive UI -->
     </body>
 </html>
