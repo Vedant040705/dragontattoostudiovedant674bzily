@@ -101,10 +101,12 @@
                     src="assets/asset.gltf"
                 ></a-asset-item>
 
-                <!-- Model Switch: replacement glTF model asset (Shadow Flame Mantis) -->
-                <!-- scene.gltf is loaded exactly as exported; it resolves scene.bin and
-                     the assets/textures/ images itself via its own relative paths, so
-                     none of those file paths were touched. -->
+                <!-- Model Switch: replacement glTF model asset (Shadow Flame Mantis), preloaded here
+                     alongside the dragon so both are fetched together on page load. scene.gltf is
+                     loaded exactly as exported; its own JSON references "scene.bin" for geometry and
+                     "textures/<file>.png" for images, both resolved relative to assets/, i.e.
+                     assets/scene.bin and assets/textures/ - which matches the actual assets/ folder,
+                     so no filenames or paths needed to change. -->
                 <a-asset-item
                     id="mantis-asset"
                     src="assets/scene.gltf"
@@ -175,13 +177,19 @@
                      Nothing about its default appearance, scale, rotation, animation-mixer or gesture-handler
                      has been changed - the new animations only run when the "dragonSwitchOut" event fires.
                      On marker detection only this dragon entity is visible (default visible = true); the
-                     mantis entity below starts hidden, satisfying "only the dragon should be visible" on
-                     marker detection. -->
+                     mantis entity below starts hidden, so the dragon is the only thing shown at startup. -->
 
                 <!-- Model Switch: replacement model (Shadow Flame Mantis), hidden/zero-scale until the first tap.
-                     Position, rotation and target scale are set to be IDENTICAL to the dragon's own resting
-                     position (0 0 0), resting rotation (0 0 0) and scale value, so the mantis appears in
-                     exactly the same place the dragon occupied. -->
+                     BUG FIX: the mantis previously never appeared because it was given the SAME numeric
+                     scale value as the dragon (0.00327...). The dragon's own mesh is a huge raw import that
+                     needs that tiny factor to look right; the mantis glTF is already exported at roughly
+                     human/real-world scale (~1 unit), so multiplying it by 0.00327 shrank it down to a
+                     fraction of a millimetre - technically rendered, but far too small to ever see.
+                     The fix below measures both models' real (unscaled) bounding boxes at runtime and
+                     computes a scale for the mantis that makes it occupy the same apparent size the dragon
+                     currently has, then copies the dragon's live position/rotation exactly on top of that -
+                     satisfying "copy the exact transform from the first model" without inheriting a scale
+                     number that only makes sense for a differently-sized mesh. -->
                 <a-entity
                     id="mantis-model"
                     visible="false"
@@ -193,8 +201,6 @@
                     class="clickable"
                     gesture-handler
                     fade-opacity="opacity: 0"
-                    animation="property: rotation; from: 0 0 0; to: 0 -360 0; dur: 8000; loop: true; easing: linear"
-                    animation__modelswitchinscale="property: scale; from: 0 0 0; to: 0.0032741529961277677 0.0032741529961277677 0.0032741529961277677; dur: 1000; easing: easeOutBack; startEvents: dragonSwitchIn"
                     animation__modelswitchinfade="property: fade-opacity.opacity; from: 0; to: 1; dur: 1000; easing: easeOutQuad; startEvents: dragonSwitchIn"
                 ></a-entity>
 
@@ -493,6 +499,48 @@ Pune, Maharashtra"
                 var mantisEl = document.querySelector('#mantis-model');
                 var flashEl = document.querySelector('#transform-flash');
                 var modelSwitched = false; // ensures the dragon -> mantis transformation only ever happens once
+                var mantisLoaded = false; // set true once scene.gltf has actually finished loading
+                var swapRequested = false; // true once the user has tapped, waiting on mantisLoaded if needed
+
+                function radToDeg(rad) {
+                    return (rad * 180) / Math.PI;
+                }
+
+                // Measures a loaded glTF mesh's own bounding-box size, ignoring the scale/position/
+                // rotation of its parent entity (so it reflects the model's true native size on disk,
+                // not whatever scale the entity currently happens to have applied).
+                function measureNativeSize(mesh) {
+                    if (!mesh) return null;
+                    var parent = mesh.parent;
+                    if (parent) parent.remove(mesh);
+                    mesh.updateMatrixWorld(true);
+                    var box = new THREE.Box3().setFromObject(mesh);
+                    var size = new THREE.Vector3();
+                    box.getSize(size);
+                    if (parent) parent.add(mesh);
+                    mesh.updateMatrixWorld(true);
+                    return size;
+                }
+
+                if (mantisEl) {
+                    mantisEl.addEventListener('model-loaded', function () {
+                        mantisLoaded = true;
+                        console.log('New model loaded.');
+                        if (swapRequested) {
+                            completeSwap();
+                        }
+                    });
+                    mantisEl.addEventListener('model-error', function (evt) {
+                        var errorDetail = evt && evt.detail ? evt.detail : evt;
+                        console.error('Failed to load assets/scene.gltf:', errorDetail);
+                    });
+                    // Covers the case where the model object already finished loading before this
+                    // listener was attached (e.g. very fast/cached load).
+                    if (mantisEl.getObject3D('mesh')) {
+                        mantisLoaded = true;
+                        console.log('New model loaded.');
+                    }
+                }
 
                 function playTransformFlash() {
                     if (!flashEl) return;
@@ -503,29 +551,100 @@ Pune, Maharashtra"
                     }, 900);
                 }
 
+                function completeSwap() {
+                    if (!oldDragonEl || !mantisEl) return;
+                    try {
+                        // Copy the dragon's exact CURRENT position/rotation (accounts for anything
+                        // gesture-handler may have changed) onto the mantis.
+                        var dragonObj = oldDragonEl.object3D;
+                        var dragonPos = dragonObj.position;
+                        var dragonRotDeg = {
+                            x: radToDeg(dragonObj.rotation.x),
+                            y: radToDeg(dragonObj.rotation.y),
+                            z: radToDeg(dragonObj.rotation.z)
+                        };
+                        var dragonScalar = dragonObj.scale.x || 0.0032741529961277677;
+
+                        // Work out a scale for the mantis so it visually matches the dragon's current
+                        // apparent size, since the two source models were exported at very different
+                        // native scales (see BUG FIX comment above the mantis entity).
+                        var dragonMesh = oldDragonEl.getObject3D('mesh');
+                        var mantisMesh = mantisEl.getObject3D('mesh');
+                        var mantisTargetScalar = dragonScalar;
+                        if (dragonMesh && mantisMesh) {
+                            var dragonSize = measureNativeSize(dragonMesh);
+                            var mantisSize = measureNativeSize(mantisMesh);
+                            var dragonMaxDim = Math.max(dragonSize.x, dragonSize.y, dragonSize.z);
+                            var mantisMaxDim = Math.max(mantisSize.x, mantisSize.y, mantisSize.z);
+                            var dragonApparentSize = dragonMaxDim * dragonScalar;
+                            if (mantisMaxDim > 0) {
+                                mantisTargetScalar = dragonApparentSize / mantisMaxDim;
+                            }
+                            console.log('Dragon apparent size:', dragonApparentSize, '| Mantis native max dim:', mantisMaxDim, '| Mantis target scale:', mantisTargetScalar);
+                        } else {
+                            console.log('Could not measure meshes yet, falling back to dragon scale value for mantis.');
+                        }
+
+                        // Apply the copied position/rotation exactly.
+                        mantisEl.setAttribute('position', { x: dragonPos.x, y: dragonPos.y, z: dragonPos.z });
+
+                        // Continuous 360 rotation, continuing seamlessly from the dragon's current angle.
+                        mantisEl.setAttribute('animation__mantisrotate', {
+                            property: 'rotation',
+                            from: dragonRotDeg.x + ' ' + dragonRotDeg.y + ' ' + dragonRotDeg.z,
+                            to: dragonRotDeg.x + ' ' + (dragonRotDeg.y - 360) + ' ' + dragonRotDeg.z,
+                            dur: 8000,
+                            loop: true,
+                            easing: 'linear'
+                        });
+
+                        // Scale-in animation using the computed (size-matched) target scale.
+                        mantisEl.setAttribute('animation__modelswitchinscale', {
+                            property: 'scale',
+                            from: '0 0 0',
+                            to: mantisTargetScalar + ' ' + mantisTargetScalar + ' ' + mantisTargetScalar,
+                            dur: 1000,
+                            easing: 'easeOutBack',
+                            startEvents: 'dragonSwitchIn'
+                        });
+
+                        // Magical glowing flash / particle burst right as the mantis becomes visible.
+                        playTransformFlash();
+
+                        // Old dragon: play its scale-down + fade-out transition, then hide it for good.
+                        oldDragonEl.emit('dragonSwitchOut');
+                        setTimeout(function () {
+                            oldDragonEl.setAttribute('visible', false);
+                            oldDragonEl.removeEventListener('click', breatheFire);
+                        }, 950);
+
+                        // Mantis: make it visible/raycastable and play its scale-up + fade-in transition.
+                        mantisEl.setAttribute('visible', true);
+                        mantisEl.emit('dragonSwitchIn');
+
+                        // Keep "click events" working on the mantis - fire breathing is preserved and now
+                        // plays from the mantis instead of the dragon.
+                        mantisEl.addEventListener('click', breatheFire);
+
+                        console.log('Model swap complete.');
+                    } catch (err) {
+                        console.error('Model swap failed:', err);
+                    }
+                }
+
                 function transformDragonToMantis() {
                     if (modelSwitched || !oldDragonEl || !mantisEl) return;
                     modelSwitched = true;
+                    oldDragonEl.removeEventListener('click', transformDragonToMantis);
 
-                    // Magical glowing flash / particle burst at the moment of transformation.
-                    playTransformFlash();
+                    console.log('Loading new model...');
 
-                    // Old dragon: play its scale-down + fade-out transition, then hide it for good.
-                    oldDragonEl.emit('dragonSwitchOut');
-                    setTimeout(function () {
-                        oldDragonEl.setAttribute('visible', false);
-                        oldDragonEl.removeEventListener('click', breatheFire);
-                        oldDragonEl.removeEventListener('click', transformDragonToMantis);
-                    }, 950);
-
-                    // Mantis: make it visible/raycastable and play its scale-up + fade-in transition.
-                    // Position, rotation and target scale exactly match the dragon's own resting transform.
-                    mantisEl.setAttribute('visible', true);
-                    mantisEl.emit('dragonSwitchIn');
-
-                    // Keep "click events" working on the mantis - fire breathing is preserved and now
-                    // plays from the mantis instead of the dragon.
-                    mantisEl.addEventListener('click', breatheFire);
+                    if (mantisLoaded) {
+                        completeSwap();
+                    } else {
+                        // Wait until scene.gltf has actually finished loading before hiding the dragon.
+                        swapRequested = true;
+                    }
                 }
 
                 if (oldDragonEl) {
