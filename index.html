@@ -29,6 +29,61 @@
             }
         </script>
         <!-- End Added Interactive UI -->
+
+        <!-- Model Switch -->
+        <script>
+            // Model Switching Logic
+            // Generic fade component for glTF models. A-Frame's built-in "material"
+            // component only works on primitives with their own geometry, so for a
+            // gltf-model (which can contain many meshes/materials) we register a small
+            // native A-Frame component whose single numeric property ("opacity") can be
+            // driven by A-Frame's native <a-animation>/animation__ system. Whenever the
+            // component's data changes, it pushes that opacity value onto every material
+            // found inside the entity's loaded 3D model, giving a real fade in/out.
+            if (window.AFRAME && !AFRAME.components['fade-opacity']) {
+                AFRAME.registerComponent('fade-opacity', {
+                    schema: { opacity: { type: 'number', default: 1 } },
+                    init: function () {
+                        var self = this;
+                        this.materials = [];
+                        this.el.addEventListener('model-loaded', function () {
+                            self.collectMaterials();
+                            self.applyOpacity();
+                        });
+                        // In case the model object is already present when this component initializes.
+                        if (this.el.getObject3D('mesh')) {
+                            this.collectMaterials();
+                        }
+                    },
+                    collectMaterials: function () {
+                        this.materials = [];
+                        var root = this.el.getObject3D('mesh') || this.el.object3D;
+                        if (!root) return;
+                        var self = this;
+                        root.traverse(function (node) {
+                            if (node.isMesh && node.material) {
+                                var mats = Array.isArray(node.material) ? node.material : [node.material];
+                                mats.forEach(function (mat) {
+                                    mat.transparent = true;
+                                    mat.depthWrite = true;
+                                    self.materials.push(mat);
+                                });
+                            }
+                        });
+                    },
+                    update: function () {
+                        this.applyOpacity();
+                    },
+                    applyOpacity: function () {
+                        var op = this.data.opacity;
+                        this.materials.forEach(function (mat) {
+                            mat.opacity = op;
+                        });
+                    }
+                });
+            }
+        </script>
+        <!-- End Model Switch -->
     </head>
     <body style="margin: 0; overflow: hidden;">
         <a-scene
@@ -45,6 +100,13 @@
                     id="animated-asset"
                     src="assets/asset.gltf"
                 ></a-asset-item>
+
+                <!-- Model Switch: replacement glTF model asset -->
+                <a-asset-item
+                    id="new-dragon-asset"
+                    src="assets/newAsset.gltf"
+                ></a-asset-item>
+                <!-- End Model Switch -->
 
                 <!-- Added Interactive UI: generate rounded-rect background textures for buttons/panels -->
                 <script>
@@ -101,7 +163,30 @@
                     class="clickable"
                     gesture-handler
                     animation="property: rotation; from: 0 0 0; to: 0 -360 0; dur: 8000; loop: true; easing: linear"
+                    fade-opacity="opacity: 1"
+                    animation__modelswitchoutscale="property: scale; from: 0.0032741529961277677 0.0032741529961277677 0.0032741529961277677; to: 0 0 0; dur: 950; easing: easeInBack; startEvents: dragonSwitchOut"
+                    animation__modelswitchoutfade="property: fade-opacity.opacity; from: 1; to: 0; dur: 900; easing: easeInQuad; startEvents: dragonSwitchOut"
                 ></a-entity>
+                <!-- Model Switch: attributes above (fade-opacity + animation__modelswitchout*) added to the
+                     original dragon so it can smoothly scale down and fade out the first time it is tapped.
+                     Nothing about its default appearance, scale, rotation, animation-mixer or gesture-handler
+                     has been changed - the new animations only run when the "dragonSwitchOut" event fires. -->
+
+                <!-- Model Switch: replacement dragon model, hidden/zero-scale until the first tap -->
+                <a-entity
+                    id="new-dragon-model"
+                    visible="false"
+                    scale="0 0 0"
+                    animation-mixer="loop: repeat"
+                    gltf-model="#new-dragon-asset"
+                    class="clickable"
+                    gesture-handler
+                    fade-opacity="opacity: 0"
+                    animation="property: rotation; from: 0 0 0; to: 0 -360 0; dur: 8000; loop: true; easing: linear"
+                    animation__modelswitchinscale="property: scale; from: 0 0 0; to: 0.0032741529961277677 0.0032741529961277677 0.0032741529961277677; dur: 1000; easing: easeOutBack; startEvents: dragonSwitchIn"
+                    animation__modelswitchinfade="property: fade-opacity.opacity; from: 0; to: 1; dur: 1000; easing: easeOutQuad; startEvents: dragonSwitchIn"
+                ></a-entity>
+                <!-- End Model Switch -->
 
                 <!-- Fire Breath Effect -->
                 <!-- Native A-Frame fire made from layered semi-transparent animated spheres. -->
@@ -315,7 +400,6 @@ Pune, Maharashtra"
                 var activePanel = null; // currently visible panel name ('about' | 'gallery' | 'contact' | null)
 
                 // Fire Breath Interaction
-                var dragonEl = document.querySelector('#bowser-model');
                 var fireBreathEl = document.querySelector('#fire-breath');
                 var fireBreathTimer = null;
 
@@ -338,15 +422,43 @@ Pune, Maharashtra"
                 }
 
                 function breatheFire() {
-                    if (!dragonEl || !fireBreathEl) return;
+                    if (!fireBreathEl) return;
                     resetFireBreath();
                     fireBreathEl.setAttribute('visible', true);
                     fireBreathEl.emit('fireBreath');
                     fireBreathTimer = setTimeout(resetFireBreath, 2050);
                 }
 
-                if (dragonEl) {
-                    dragonEl.addEventListener('click', breatheFire);
+                // Model Switching Logic
+                var oldDragonEl = document.querySelector('#bowser-model');
+                var newDragonEl = document.querySelector('#new-dragon-model');
+                var modelSwitched = false; // ensures the replacement only ever happens once
+
+                function switchDragonModel() {
+                    if (modelSwitched || !oldDragonEl || !newDragonEl) return;
+                    modelSwitched = true;
+
+                    // Old dragon: play its scale-down + fade-out transition, then hide it for good.
+                    oldDragonEl.emit('dragonSwitchOut');
+                    setTimeout(function () {
+                        oldDragonEl.setAttribute('visible', false);
+                        oldDragonEl.removeEventListener('click', breatheFire);
+                        oldDragonEl.removeEventListener('click', switchDragonModel);
+                    }, 950);
+
+                    // New dragon: make it visible/raycastable and play its scale-up + fade-in transition.
+                    newDragonEl.setAttribute('visible', true);
+                    newDragonEl.emit('dragonSwitchIn');
+
+                    // Keep "click events" working on the replacement dragon (fire breathing continues to work).
+                    newDragonEl.addEventListener('click', breatheFire);
+                }
+
+                if (oldDragonEl) {
+                    // Existing fire-breath tap interaction is preserved...
+                    oldDragonEl.addEventListener('click', breatheFire);
+                    // ...and the new one-time model-switch tap interaction is added alongside it.
+                    oldDragonEl.addEventListener('click', switchDragonModel);
                 }
 
                 function getPanelEl(name) {
