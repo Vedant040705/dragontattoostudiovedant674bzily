@@ -101,10 +101,13 @@
                     src="assets/asset.gltf"
                 ></a-asset-item>
 
-                <!-- Model Switch: replacement glTF model asset -->
+                <!-- Model Switch: replacement glTF model asset (Shadow Flame Mantis) -->
+                <!-- scene.gltf is loaded exactly as exported; it resolves scene.bin and
+                     the assets/textures/ images itself via its own relative paths, so
+                     none of those file paths were touched. -->
                 <a-asset-item
-                    id="new-dragon-asset"
-                    src="assets/newAsset.gltf"
+                    id="mantis-asset"
+                    src="assets/scene.gltf"
                 ></a-asset-item>
                 <!-- End Model Switch -->
 
@@ -170,15 +173,23 @@
                 <!-- Model Switch: attributes above (fade-opacity + animation__modelswitchout*) added to the
                      original dragon so it can smoothly scale down and fade out the first time it is tapped.
                      Nothing about its default appearance, scale, rotation, animation-mixer or gesture-handler
-                     has been changed - the new animations only run when the "dragonSwitchOut" event fires. -->
+                     has been changed - the new animations only run when the "dragonSwitchOut" event fires.
+                     On marker detection only this dragon entity is visible (default visible = true); the
+                     mantis entity below starts hidden, satisfying "only the dragon should be visible" on
+                     marker detection. -->
 
-                <!-- Model Switch: replacement dragon model, hidden/zero-scale until the first tap -->
+                <!-- Model Switch: replacement model (Shadow Flame Mantis), hidden/zero-scale until the first tap.
+                     Position, rotation and target scale are set to be IDENTICAL to the dragon's own resting
+                     position (0 0 0), resting rotation (0 0 0) and scale value, so the mantis appears in
+                     exactly the same place the dragon occupied. -->
                 <a-entity
-                    id="new-dragon-model"
+                    id="mantis-model"
                     visible="false"
+                    position="0 0 0"
+                    rotation="0 0 0"
                     scale="0 0 0"
                     animation-mixer="loop: repeat"
-                    gltf-model="#new-dragon-asset"
+                    gltf-model="#mantis-asset"
                     class="clickable"
                     gesture-handler
                     fade-opacity="opacity: 0"
@@ -186,10 +197,58 @@
                     animation__modelswitchinscale="property: scale; from: 0 0 0; to: 0.0032741529961277677 0.0032741529961277677 0.0032741529961277677; dur: 1000; easing: easeOutBack; startEvents: dragonSwitchIn"
                     animation__modelswitchinfade="property: fade-opacity.opacity; from: 0; to: 1; dur: 1000; easing: easeOutQuad; startEvents: dragonSwitchIn"
                 ></a-entity>
+
+                <!-- Model Switch: magical transformation flash / particle burst, played once at the
+                     moment the dragon starts turning into the mantis. Built entirely from native
+                     A-Frame primitives (ring + spheres), no external particle library. -->
+                <a-entity id="transform-flash" visible="false" position="0 0 0">
+                    <a-ring
+                        color="#FFD87A"
+                        radius-inner="0.02"
+                        radius-outer="0.05"
+                        rotation="90 0 0"
+                        material="shader: flat; transparent: true; opacity: 0.9; side: double"
+                        animation__scale="property: scale; from: 0.4 0.4 0.4; to: 7 7 7; dur: 750; easing: easeOutQuad; startEvents: transformFlash"
+                        animation__fade="property: material.opacity; from: 0.9; to: 0; dur: 750; easing: easeInQuad; startEvents: transformFlash"
+                    ></a-ring>
+                    <a-sphere
+                        color="#FFFFFF"
+                        radius="0.06"
+                        material="shader: flat; transparent: true; opacity: 0.95"
+                        animation__scale="property: scale; from: 0.3 0.3 0.3; to: 3.2 3.2 3.2; dur: 500; easing: easeOutQuad; startEvents: transformFlash"
+                        animation__fade="property: material.opacity; from: 0.95; to: 0; dur: 550; easing: easeInQuad; startEvents: transformFlash"
+                    ></a-sphere>
+                    <a-sphere
+                        color="#7CFFD8"
+                        radius="0.04"
+                        material="shader: flat; transparent: true; opacity: 0.85"
+                        position="0 0 0"
+                        animation__scale="property: scale; from: 0.2 0.2 0.2; to: 4.5 4.5 4.5; dur: 850; easing: easeOutQuad; startEvents: transformFlash"
+                        animation__fade="property: material.opacity; from: 0.85; to: 0; dur: 850; easing: easeInQuad; startEvents: transformFlash"
+                        animation__spin="property: rotation; from: 0 0 0; to: 0 180 0; dur: 850; easing: linear; startEvents: transformFlash"
+                    ></a-sphere>
+                    <a-entity
+                        geometry="primitive: circle; radius: 0.03; segments: 6"
+                        material="shader: flat; color: #B98CFF; transparent: true; opacity: 0.8; side: double"
+                        position="0.05 0.05 0"
+                        animation__spark1="property: position; from: 0.05 0.05 0; to: 0.4 0.35 0.2; dur: 700; easing: easeOutQuad; startEvents: transformFlash"
+                        animation__spark1fade="property: material.opacity; from: 0.8; to: 0; dur: 700; easing: easeInQuad; startEvents: transformFlash"
+                    ></a-entity>
+                    <a-entity
+                        geometry="primitive: circle; radius: 0.03; segments: 6"
+                        material="shader: flat; color: #FFD87A; transparent: true; opacity: 0.8; side: double"
+                        position="-0.05 -0.04 0.02"
+                        animation__spark2="property: position; from: -0.05 -0.04 0.02; to: -0.42 -0.3 -0.2; dur: 700; easing: easeOutQuad; startEvents: transformFlash"
+                        animation__spark2fade="property: material.opacity; from: 0.8; to: 0; dur: 700; easing: easeInQuad; startEvents: transformFlash"
+                    ></a-entity>
+                </a-entity>
                 <!-- End Model Switch -->
 
                 <!-- Fire Breath Effect -->
-                <!-- Native A-Frame fire made from layered semi-transparent animated spheres. -->
+                <!-- Native A-Frame fire made from layered semi-transparent animated spheres.
+                     Kept fully intact: after the transformation this same effect is re-bound
+                     to the mantis, so tapping the mantis still breathes fire (see the
+                     "Model Switching Logic" script below). -->
                 <a-entity
                     id="fire-breath"
                     visible="false"
@@ -431,34 +490,49 @@ Pune, Maharashtra"
 
                 // Model Switching Logic
                 var oldDragonEl = document.querySelector('#bowser-model');
-                var newDragonEl = document.querySelector('#new-dragon-model');
-                var modelSwitched = false; // ensures the replacement only ever happens once
+                var mantisEl = document.querySelector('#mantis-model');
+                var flashEl = document.querySelector('#transform-flash');
+                var modelSwitched = false; // ensures the dragon -> mantis transformation only ever happens once
 
-                function switchDragonModel() {
-                    if (modelSwitched || !oldDragonEl || !newDragonEl) return;
+                function playTransformFlash() {
+                    if (!flashEl) return;
+                    flashEl.setAttribute('visible', true);
+                    flashEl.emit('transformFlash');
+                    setTimeout(function () {
+                        flashEl.setAttribute('visible', false);
+                    }, 900);
+                }
+
+                function transformDragonToMantis() {
+                    if (modelSwitched || !oldDragonEl || !mantisEl) return;
                     modelSwitched = true;
+
+                    // Magical glowing flash / particle burst at the moment of transformation.
+                    playTransformFlash();
 
                     // Old dragon: play its scale-down + fade-out transition, then hide it for good.
                     oldDragonEl.emit('dragonSwitchOut');
                     setTimeout(function () {
                         oldDragonEl.setAttribute('visible', false);
                         oldDragonEl.removeEventListener('click', breatheFire);
-                        oldDragonEl.removeEventListener('click', switchDragonModel);
+                        oldDragonEl.removeEventListener('click', transformDragonToMantis);
                     }, 950);
 
-                    // New dragon: make it visible/raycastable and play its scale-up + fade-in transition.
-                    newDragonEl.setAttribute('visible', true);
-                    newDragonEl.emit('dragonSwitchIn');
+                    // Mantis: make it visible/raycastable and play its scale-up + fade-in transition.
+                    // Position, rotation and target scale exactly match the dragon's own resting transform.
+                    mantisEl.setAttribute('visible', true);
+                    mantisEl.emit('dragonSwitchIn');
 
-                    // Keep "click events" working on the replacement dragon (fire breathing continues to work).
-                    newDragonEl.addEventListener('click', breatheFire);
+                    // Keep "click events" working on the mantis - fire breathing is preserved and now
+                    // plays from the mantis instead of the dragon.
+                    mantisEl.addEventListener('click', breatheFire);
                 }
 
                 if (oldDragonEl) {
                     // Existing fire-breath tap interaction is preserved...
                     oldDragonEl.addEventListener('click', breatheFire);
-                    // ...and the new one-time model-switch tap interaction is added alongside it.
-                    oldDragonEl.addEventListener('click', switchDragonModel);
+                    // ...and the new one-time dragon -> mantis transformation is added alongside it.
+                    oldDragonEl.addEventListener('click', transformDragonToMantis);
                 }
 
                 function getPanelEl(name) {
